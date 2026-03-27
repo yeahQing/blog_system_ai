@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: blog-api
+  profiles:
+    active: dev # 默认激活 dev 配置
+
+  # 公共配置
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# 腾讯云 COS 配置
+tencent:
+  cos:
+    secret-id: ${COS_SECRET_ID:your_secret_id}
+    secret-key: ${COS_SECRET_KEY:your_secret_key}
+    region: ${COS_REGION:ap-shanghai}
+    bucket-name: ${COS_BUCKET:your_bucket_name}
+    url-prefix: ${COS_URL_PREFIX:your_url_prefix}
+
+# JWT 配置
+jwt:
+  secret: ${JWT_SECRET:your_very_secure_and_long_secret_key_at_least_32_chars}
+  expiration: 86400000 # 24小时
+
+# 前台站点与博主（可被后台「站点设置」覆盖写入数据库）
+blog:
+  site:
+    nav-title: AI BLOG
+    nav-logo-url: ""
+    hero-title: 探索代码与生活
+    hero-subtitle: 分享技术洞见，记录成长瞬间
+    author-name: AI BLOG
+    author-bio: 全栈开发者 · 记录技术、阅读与生活
+    author-avatar: https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png
+    footer-text: "© {year} AI BLOG · Powered by Vue 3 & Spring Boot"
+
+logging:
+  charset:
+    console: UTF-8
+  level:
+    com.blog.api: INFO
+    org.springframework.web: INFO

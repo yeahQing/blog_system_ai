@@ -1,0 +1,29 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  # 数据库配置 (服务器 Docker)
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:blog-db}:${DB_PORT:5432}/${DB_NAME:blog}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres_password}
+    driver-class-name: org.postgresql.Driver
+  
+  # JPA 配置
+  jpa:
+    hibernate:
+      ddl-auto: validate # 生产环境建议使用 validate 或 none
+    show-sql: false
+
+  # Redis 配置 (服务器 Docker)
+  data:
+    redis:
+      host: ${REDIS_HOST:blog-redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redis_password}
+
+logging:
+  level:
+    com.blog.api: INFO
+    org.springframework.web: WARN

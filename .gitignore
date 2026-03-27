@@ -1,0 +1,18 @@
+# 仓库根目录：只纳入 blog-api、blog-web（以及本文件）
+/*
+!.gitignore
+!README.md
+!/blog-api/
+!/blog-web/
+
+# blog-api：Maven / IDE（源码仍跟踪）
+blog-api/target/
+blog-api/.idea/
+blog-api/*.iml
+blog-api/.classpath
+blog-api/.project
+blog-api/.settings/
+
+# 密钥与本地环境（两子项目内也不要提交真实 .env）
+.env
+!.env.example
