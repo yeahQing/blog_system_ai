@@ -2,7 +2,7 @@
 /*
 !.gitignore
 !README.md
-!/deploy/
+/deploy/*
 !/blog-api/
 !/blog-web/
 
@@ -17,9 +17,3 @@ blog-api/.settings/
 # 密钥与本地环境（两子项目内也不要提交真实 .env）
 .env
 !.env.example
-
-# 腾讯云证书私钥与证书文件（仅保留 yeahqing.cn_nginx/README.md）
-deploy/yeahqing.cn_nginx/*.crt
-deploy/yeahqing.cn_nginx/*.pem
-deploy/yeahqing.cn_nginx/*.key
-deploy/yeahqing.cn_nginx/*.csr
