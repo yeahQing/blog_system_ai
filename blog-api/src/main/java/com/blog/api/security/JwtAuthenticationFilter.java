@@ -5,7 +5,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,14 +16,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * JWT 认证过滤器
+ * JWT 认证过滤器：携带 Bearer 时必须校验通过，否则 401，避免前端仅靠 localStorage 误判已登录。
  */
 @Component
-@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+
+    public JwtAuthenticationFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService) {
+        this.jwtUtils = jwtUtils;
+        this.userDetailsService = userDetailsService;
+    }
 
     @Override
     protected void doFilterInternal(
@@ -33,33 +36,46 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String username;
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
-        try {
-            username = jwtUtils.extractUsername(jwt);
-            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
-                if (jwtUtils.validateToken(jwt, userDetails)) {
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                }
-            }
-        } catch (Exception e) {
-            logger.error("JWT 解析失败: " + e.getMessage());
-            // 解析失败不抛出异常，直接放行，由后续的 Security 配置决定是否允许访问
+        final String jwt = authHeader.substring(7).trim();
+        if (jwt.isEmpty()) {
+            filterChain.doFilter(request, response);
+            return;
         }
+
+        try {
+            final String username = jwtUtils.extractUsername(jwt);
+            if (username == null || username.isBlank()) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+            if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            if (!jwtUtils.validateToken(jwt, userDetails)) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                    userDetails,
+                    null,
+                    userDetails.getAuthorities()
+            );
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+        } catch (Exception e) {
+            logger.warn("JWT 无效或无法解析: " + e.getMessage());
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
+
         filterChain.doFilter(request, response);
     }
 }

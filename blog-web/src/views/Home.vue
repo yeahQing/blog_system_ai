@@ -23,17 +23,13 @@
     </div>
 
     <div class="content-wrapper">
-      <div
-        :key="listKey"
-        class="article-list"
-        v-infinite-scroll="loadMore"
-        :infinite-scroll-disabled="disabled"
-      >
+      <div :key="listKey" class="article-list">
         <div v-for="article in articles" :key="article.id" class="article-item" @click="goToDetail(article.id)">
           <el-card shadow="hover" class="article-card">
             <div class="card-body">
               <div class="article-content">
                 <div class="article-header">
+                  <el-tag v-if="article.pinned" type="danger" effect="plain" size="small" class="pin-tag">置顶</el-tag>
                   <el-tag v-if="article.category" size="small" effect="plain" class="category-tag">
                     {{ article.category.name }}
                   </el-tag>
@@ -56,7 +52,11 @@
                   <div class="meta-left">
                     <span class="meta-item">
                       <el-icon><Calendar /></el-icon>
-                      {{ formatDate(article.createdAt) }}
+                      发布 {{ formatDate(article.createdAt) }}
+                    </span>
+                    <span v-if="article.updatedAt" class="meta-item">
+                      <el-icon><Clock /></el-icon>
+                      更新 {{ formatDate(article.updatedAt) }}
                     </span>
                     <span class="meta-item">
                       <el-icon><View /></el-icon>
@@ -82,6 +82,8 @@
             </div>
           </el-card>
         </div>
+
+        <div ref="loadMoreSentinel" class="load-more-sentinel" aria-hidden="true" />
 
         <div v-if="loading" class="status-info">
           <el-skeleton :rows="3" animated />
@@ -157,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, inject, type Ref } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, inject, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPortalArticles } from '../api/article'
 import { listCategories } from '../api/category'
@@ -228,6 +230,25 @@ const keyword = computed(() => {
 const listKey = computed(() => `${categoryId.value ?? ''}-${tagId.value ?? ''}-${keyword.value}`)
 
 const disabled = computed(() => loading.value || noMore.value)
+
+const loadMoreSentinel = ref<HTMLElement | null>(null)
+let scrollObserver: IntersectionObserver | null = null
+
+function bindInfiniteScroll() {
+  scrollObserver?.disconnect()
+  scrollObserver = null
+  const el = loadMoreSentinel.value
+  if (!el) return
+  scrollObserver = new IntersectionObserver(
+    (entries) => {
+      if (!entries[0]?.isIntersecting) return
+      if (disabled.value) return
+      loadMore()
+    },
+    { root: null, rootMargin: '160px', threshold: 0 }
+  )
+  scrollObserver.observe(el)
+}
 
 const totalArticleHint = computed(() => {
   if (totalElements.value > 0) return String(totalElements.value)
@@ -322,9 +343,11 @@ const formatDate = (dateStr: string) => {
 
 watch(
   () => listKey.value,
-  () => {
+  async () => {
     syncKeywordFromRoute()
-    resetAndLoadFirst()
+    await resetAndLoadFirst()
+    await nextTick()
+    bindInfiniteScroll()
   }
 )
 
@@ -338,6 +361,13 @@ onMounted(async () => {
     /* 侧栏可选 */
   }
   await resetAndLoadFirst()
+  await nextTick()
+  bindInfiniteScroll()
+})
+
+onUnmounted(() => {
+  scrollObserver?.disconnect()
+  scrollObserver = null
 })
 </script>
 
@@ -413,6 +443,12 @@ onMounted(async () => {
   gap: 30px;
 }
 
+.load-more-sentinel {
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+}
+
 .article-item {
   cursor: pointer;
 }
@@ -451,6 +487,13 @@ onMounted(async () => {
 
 .article-header {
   margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pin-tag {
+  flex-shrink: 0;
 }
 .tag-row {
   display: flex;
@@ -462,11 +505,12 @@ onMounted(async () => {
   cursor: pointer;
 }
 .category-tag {
-  margin-bottom: 8px;
   border-radius: 4px;
 }
 .title {
   margin: 0;
+  flex: 1;
+  min-width: 140px;
   font-size: 22px;
   font-weight: 700;
   color: var(--portal-text, #1e293b);
@@ -564,7 +608,6 @@ onMounted(async () => {
 .stats {
   display: flex;
   justify-content: space-around;
-  border-top: 1px solid var(--portal-border, #f1f5f9);
   padding-top: 20px;
 }
 .stat-item {

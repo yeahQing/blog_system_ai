@@ -1,0 +1,6 @@
+# 减小构建上下文；镜像内仅含 Dockerfile 中的 dist/ 与 nginx/，不含业务源码层
+node_modules
+dist-ssr
+.git
+.vscode
+*.local

@@ -14,6 +14,17 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
+        <el-select
+          v-model="statusFilter"
+          placeholder="状态"
+          clearable
+          class="status-filter"
+          @change="onFilterChange"
+        >
+          <el-option label="全部" value="" />
+          <el-option label="草稿" value="draft" />
+          <el-option label="已发布" value="published" />
+        </el-select>
         <el-button type="primary" @click="fetchArticles">查询</el-button>
       </div>
       <div class="right">
@@ -50,10 +61,25 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="置顶" width="88" align="center">
+        <template #default="{ row }">
+          <el-switch
+            :model-value="!!row.pinned"
+            :disabled="row.isDraft"
+            :loading="pinLoadingId === row.id"
+            @change="(v: boolean) => onPinnedChange(row, v)"
+          />
+        </template>
+      </el-table-column>
       <el-table-column prop="views" label="阅读量" width="100" align="center" sortable />
-      <el-table-column label="创建时间" width="180" align="center">
+      <el-table-column label="创建时间" width="168" align="center">
         <template #default="{ row }">
           {{ formatDateTime(row.createdAt) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="更新时间" width="168" align="center">
+        <template #default="{ row }">
+          {{ formatDateTime(row.updatedAt) }}
         </template>
       </el-table-column>
       <el-table-column label="操作" width="280" fixed="right" align="center">
@@ -102,27 +128,55 @@ import {
   getAdminArticles,
   deleteArticle,
   publishArticleAdmin,
-  unpublishArticleAdmin
+  unpublishArticleAdmin,
+  setArticlePinned
 } from '../api/article'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const articles = ref<any[]>([])
 const loading = ref(false)
 const keyword = ref('')
+/** 全部 | draft | published */
+const statusFilter = ref<string>('')
 const page = ref(1)
 const size = ref(10)
 const total = ref(0)
 /** 发布/下架请求中的行 id，用于按钮 loading */
 const actionId = ref<number | null>(null)
+const pinLoadingId = ref<number | null>(null)
+
+const onPinnedChange = async (row: { id: number; pinned?: boolean }, pinned: boolean) => {
+  pinLoadingId.value = row.id
+  try {
+    const res: any = await setArticlePinned(row.id, pinned)
+    if (res?.code === 200) {
+      row.pinned = pinned
+      ElMessage.success(pinned ? '已置顶' : '已取消置顶')
+    }
+  } catch {
+    /* axios 已提示 */
+  } finally {
+    pinLoadingId.value = null
+  }
+}
+
+const onFilterChange = () => {
+  page.value = 1
+  fetchArticles()
+}
 
 const fetchArticles = async () => {
   loading.value = true
   try {
-    const res: any = await getAdminArticles({ 
-      page: page.value - 1, 
-      size: size.value,
-      keyword: keyword.value 
-    })
+    const params: Record<string, unknown> = {
+      page: page.value - 1,
+      size: size.value
+    }
+    const kw = keyword.value.trim()
+    if (kw) params.keyword = kw
+    if (statusFilter.value === 'draft') params.isDraft = true
+    if (statusFilter.value === 'published') params.isDraft = false
+    const res: any = await getAdminArticles(params)
     if (res.code === 200) {
       articles.value = res.data.content
       total.value = res.data.totalElements
@@ -232,6 +286,10 @@ const formatDateTime = (dateStr: string) => {
 
 .search-input {
   width: 240px;
+}
+
+.status-filter {
+  width: 120px;
 }
 
 .article-table {

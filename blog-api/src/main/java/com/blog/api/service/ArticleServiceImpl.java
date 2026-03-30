@@ -1,12 +1,15 @@
 package com.blog.api.service;
 
+import com.blog.api.dto.ArticleSaveRequest;
 import com.blog.api.entity.Article;
+import com.blog.api.entity.Category;
 import com.blog.api.entity.Tag;
 import com.blog.api.repository.ArticleRepository;
+import com.blog.api.repository.CategoryRepository;
 import com.blog.api.repository.TagRepository;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,61 +21,103 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class ArticleServiceImpl implements ArticleService {
+
+    private static final Logger log = LoggerFactory.getLogger(ArticleServiceImpl.class);
 
     private final ArticleRepository articleRepository;
     private final TagRepository tagRepository;
+    private final CategoryRepository categoryRepository;
 
-    private void mergeTags(Article target, Set<Tag> tags) {
-        if (tags == null) {
+    public ArticleServiceImpl(
+            ArticleRepository articleRepository,
+            TagRepository tagRepository,
+            CategoryRepository categoryRepository) {
+        this.articleRepository = articleRepository;
+        this.tagRepository = tagRepository;
+        this.categoryRepository = categoryRepository;
+    }
+
+    private void resolveCategory(Article target, Long categoryId) {
+        if (categoryId == null) {
+            target.setCategory(null);
             return;
         }
+        Category cat = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new IllegalArgumentException("分类不存在: " + categoryId));
+        target.setCategory(cat);
+    }
+
+    /** 用 id 列表关联标签，避免 JSON 反序列化到 {@code Set<Tag>} 时绑定失败 */
+    private void mergeTagsByIds(Article target, List<Long> tagIds) {
+        if (tagIds == null) {
+            return;
+        }
+        Set<Long> ids = tagIds.stream().filter(id -> id != null).collect(Collectors.toSet());
         Set<Tag> next = new HashSet<>();
-        for (Tag t : tags) {
-            if (t != null && t.getId() != null) {
-                tagRepository.findById(t.getId()).ifPresent(next::add);
-            }
+        for (Long id : ids) {
+            tagRepository.findById(id).ifPresent(next::add);
         }
         target.setTags(next);
     }
 
+    /** 从中间表组装 tags，供 JSON 序列化（懒加载集合在列表/详情中否则常为空） */
+    private void attachTagsFromJoinTable(Article article) {
+        if (article.getId() == null) {
+            return;
+        }
+        List<Long> tagIds = articleRepository.findTagIdsByArticleId(article.getId());
+        Set<Tag> tags = new HashSet<>();
+        for (Long tid : tagIds) {
+            if (tid != null) {
+                tagRepository.findById(tid).ifPresent(tags::add);
+            }
+        }
+        article.setTags(tags);
+    }
+
     @Override
     @Transactional
-    public Article saveArticle(Article incoming) {
-        if (incoming.getTitle() == null || incoming.getTitle().isBlank()) {
+    public Article saveArticle(ArticleSaveRequest req) {
+        if (req.getTitle() == null || req.getTitle().isBlank()) {
             throw new IllegalArgumentException("标题不能为空");
         }
-        if (incoming.getId() == null) {
-            if (incoming.getViews() == null) {
-                incoming.setViews(0);
-            }
-            if (incoming.getLikeCount() == null) {
-                incoming.setLikeCount(0);
-            }
-            if (incoming.getIsDeleted() == null) {
-                incoming.setIsDeleted(false);
-            }
-            mergeTags(incoming, incoming.getTags());
+        if (req.getId() == null) {
+            Article incoming = new Article();
+            incoming.setTitle(req.getTitle());
+            incoming.setContent(req.getContent());
+            incoming.setHtmlContent(req.getHtmlContent());
+            incoming.setSummary(req.getSummary());
+            incoming.setCover(req.getCover());
+            incoming.setIsDraft(req.getIsDraft() != null ? req.getIsDraft() : true);
+            incoming.setViews(0);
+            incoming.setLikeCount(0);
+            incoming.setIsDeleted(req.getIsDeleted() != null ? req.getIsDeleted() : false);
+            incoming.setPinned(req.getPinned() != null ? req.getPinned() : false);
+            resolveCategory(incoming, req.getCategoryId());
+            mergeTagsByIds(incoming, req.getTagIds() != null ? req.getTagIds() : List.of());
             log.info("新建文章: {}", incoming.getTitle());
             return articleRepository.save(incoming);
         }
-        Article existing = articleRepository.findById(incoming.getId())
-                .orElseThrow(() -> new EntityNotFoundException("文章不存在: " + incoming.getId()));
-        existing.setTitle(incoming.getTitle());
-        existing.setContent(incoming.getContent());
-        existing.setHtmlContent(incoming.getHtmlContent());
-        existing.setSummary(incoming.getSummary());
-        existing.setCover(incoming.getCover());
-        if (incoming.getIsDraft() != null) {
-            existing.setIsDraft(incoming.getIsDraft());
+        Article existing = articleRepository.findById(req.getId())
+                .orElseThrow(() -> new EntityNotFoundException("文章不存在: " + req.getId()));
+        existing.setTitle(req.getTitle());
+        existing.setContent(req.getContent());
+        existing.setHtmlContent(req.getHtmlContent());
+        existing.setSummary(req.getSummary());
+        existing.setCover(req.getCover());
+        if (req.getIsDraft() != null) {
+            existing.setIsDraft(req.getIsDraft());
         }
-        existing.setCategory(incoming.getCategory());
-        if (incoming.getTags() != null) {
-            mergeTags(existing, incoming.getTags());
+        if (req.getPinned() != null) {
+            existing.setPinned(req.getPinned());
+        }
+        resolveCategory(existing, req.getCategoryId());
+        if (req.getTagIds() != null) {
+            mergeTagsByIds(existing, req.getTagIds());
         }
         log.info("更新文章 id={}: {}", existing.getId(), existing.getTitle());
         return articleRepository.save(existing);
@@ -81,35 +126,50 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     @Transactional(readOnly = true)
     public Optional<Article> getArticleForAdminById(Long id) {
-        return articleRepository.findById(id);
+        Optional<Article> opt = articleRepository.findById(id);
+        if (opt.isEmpty()) {
+            return Optional.empty();
+        }
+        Article article = opt.get();
+        attachTagsFromJoinTable(article);
+        return Optional.of(article);
     }
 
     @Override
     @Transactional
     public Optional<Article> getArticleForPortal(Long id) {
-        return articleRepository.findByIdAndIsDraftFalseAndIsDeletedFalse(id).map(article -> {
-            article.setViews(article.getViews() + 1);
-            return articleRepository.save(article);
-        });
+        Optional<Article> opt = articleRepository.findByIdAndIsDraftFalseAndIsDeletedFalse(id);
+        if (opt.isEmpty()) {
+            return Optional.empty();
+        }
+        Article article = opt.get();
+        attachTagsFromJoinTable(article);
+        article.setViews(article.getViews() + 1);
+        return Optional.of(articleRepository.save(article));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<Article> getPortalArticles(Long categoryId, Long tagId, String keyword, Pageable pageable) {
         String kw = keyword == null ? "" : keyword.trim();
+        Page<Article> page;
         if (categoryId == null && tagId == null && kw.isEmpty()) {
-            return articleRepository.findByIsDraftAndIsDeleted(false, false, pageable);
+            page = articleRepository.findByIsDraftAndIsDeletedOrderByPinnedDescUpdatedAtDescCreatedAtDesc(
+                    false, false, pageable);
+        } else {
+            page = articleRepository.searchPortal(categoryId, tagId, kw, pageable);
         }
-        return articleRepository.searchPortal(categoryId, tagId, kw, pageable);
+        for (Article a : page.getContent()) {
+            attachTagsFromJoinTable(a);
+        }
+        return page;
     }
 
     @Override
-    public Page<Article> getArticlesForAdmin(String keyword, Pageable pageable) {
-        log.info("分页查询文章 (后台管理), 关键字: {}", keyword);
-        if (keyword != null && !keyword.isBlank()) {
-            return articleRepository.findByTitleContainingIgnoreCaseAndIsDeletedFalse(keyword.trim(), pageable);
-        }
-        return articleRepository.findByIsDeletedFalse(pageable);
+    public Page<Article> getArticlesForAdmin(String keyword, Boolean isDraft, Pageable pageable) {
+        String kw = keyword != null && !keyword.isBlank() ? keyword.trim() : null;
+        log.info("分页查询文章 (后台管理), 关键字: {}, isDraft: {}", kw, isDraft);
+        return articleRepository.findAdminList(isDraft, kw, pageable);
     }
 
     @Override
@@ -172,6 +232,19 @@ public class ArticleServiceImpl implements ArticleService {
         }
         a.setIsDraft(true);
         log.info("文章下架(改草稿) id={}", id);
+        return articleRepository.save(a);
+    }
+
+    @Override
+    @Transactional
+    public Article setArticlePinned(Long id, boolean pinned) {
+        Article a = articleRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("文章不存在: " + id));
+        if (Boolean.TRUE.equals(a.getIsDeleted())) {
+            throw new IllegalArgumentException("已删除的文章无法修改置顶");
+        }
+        a.setPinned(pinned);
+        log.info("文章置顶 id={} pinned={}", id, pinned);
         return articleRepository.save(a);
     }
 }

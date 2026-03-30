@@ -63,6 +63,15 @@ export function unpublishArticleAdmin(id: number | string) {
   })
 }
 
+/** 置顶 / 取消置顶 */
+export function setArticlePinned(id: number | string, pinned: boolean) {
+  return request({
+    url: `/article/admin/${id}/pinned`,
+    method: 'post',
+    params: { pinned }
+  })
+}
+
 export function likePortalArticle(id: number | string) {
   return request({
     url: `/article/portal/${id}/like`,

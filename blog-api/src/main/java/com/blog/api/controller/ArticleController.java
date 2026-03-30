@@ -1,6 +1,7 @@
 package com.blog.api.controller;
 
 import com.blog.api.common.Result;
+import com.blog.api.dto.ArticleSaveRequest;
 import com.blog.api.entity.Article;
 import com.blog.api.service.ArticleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,9 +29,9 @@ public class ArticleController {
 
     @Operation(summary = "保存文章 (新增/修改)")
     @PostMapping("/save")
-    public ResponseEntity<Result<Article>> saveArticle(@RequestBody Article article) {
-        log.info("接收到保存文章请求: {}", article.getTitle());
-        Article saved = articleService.saveArticle(article);
+    public ResponseEntity<Result<Article>> saveArticle(@RequestBody ArticleSaveRequest request) {
+        log.info("接收到保存文章请求: {}", request.getTitle());
+        Article saved = articleService.saveArticle(request);
         return ResponseEntity.ok(Result.success(saved));
     }
 
@@ -84,9 +85,10 @@ public class ArticleController {
     @GetMapping("/admin/list")
     public ResponseEntity<Result<Page<Article>>> getAdminList(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean isDraft,
             @PageableDefault(size = 10) Pageable pageable) {
-        log.info("管理后台分页获取文章列表");
-        return ResponseEntity.ok(Result.success(articleService.getArticlesForAdmin(keyword, pageable)));
+        log.info("管理后台分页获取文章列表 isDraft={}", isDraft);
+        return ResponseEntity.ok(Result.success(articleService.getArticlesForAdmin(keyword, isDraft, pageable)));
     }
 
     @Operation(summary = "发布文章 (草稿 → 已发布，管理后台)")
@@ -104,6 +106,18 @@ public class ArticleController {
     public ResponseEntity<Result<Article>> unpublishArticle(@PathVariable Long id) {
         try {
             return ResponseEntity.ok(Result.success(articleService.unpublishArticle(id)));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @Operation(summary = "置顶 / 取消置顶 (管理后台)")
+    @PostMapping("/admin/{id:\\d+}/pinned")
+    public ResponseEntity<Result<Article>> setArticlePinned(
+            @PathVariable Long id,
+            @RequestParam boolean pinned) {
+        try {
+            return ResponseEntity.ok(Result.success(articleService.setArticlePinned(id, pinned)));
         } catch (EntityNotFoundException e) {
             return ResponseEntity.notFound().build();
         }

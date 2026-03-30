@@ -24,6 +24,11 @@ public class Tag {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 显式声明便于未启用 Lombok 注解处理的 IDE 解析；与 @Data 生成的方法等价 */
+    public Long getId() {
+        return id;
+    }
+
     @Column(nullable = false, unique = true, length = 64)
     private String name;
 

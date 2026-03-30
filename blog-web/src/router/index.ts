@@ -1,14 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-
-import PortalLayout from '../layout/PortalLayout.vue'
-import AdminLayout from '../layout/AdminLayout.vue'
+import { isJwtExpired } from '../utils/jwt'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    component: PortalLayout,
+    component: () => import('../layout/PortalLayout.vue'),
     children: [
       {
         path: '',
@@ -66,7 +64,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin',
-    component: AdminLayout,
+    component: () => import('../layout/AdminLayout.vue'),
     meta: { requiresAuth: true },
     children: [
       {
@@ -130,22 +128,25 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to, _from) => {
   const authStore = useAuthStore()
 
   if (to.meta.title) {
     document.title = `${to.meta.title} - 博客系统`
   }
 
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next({ path: '/login', query: { redirect: to.fullPath } })
-    return
+  const token = authStore.token || localStorage.getItem('token') || ''
+  if (token && isJwtExpired(token)) {
+    authStore.logout()
+  }
+
+  if (to.meta.requiresAuth && (!authStore.token || isJwtExpired(authStore.token))) {
+    return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (to.meta.guestOnly && authStore.isAuthenticated) {
-    next('/admin/dashboard')
-    return
+    return '/admin/dashboard'
   }
-  next()
+  return true
 })
 
 export default router

@@ -12,12 +12,19 @@
               <el-breadcrumb-item>正文</el-breadcrumb-item>
             </el-breadcrumb>
 
-            <h1 class="title">{{ article.title }}</h1>
+            <div class="title-row">
+              <el-tag v-if="article.pinned" type="danger" effect="plain" size="small" class="pin-tag">置顶</el-tag>
+              <h1 class="title">{{ article.title }}</h1>
+            </div>
 
             <div class="meta">
               <span class="meta-item">
                 <el-icon><Calendar /></el-icon>
-                {{ formatDate(article.createdAt) }}
+                发布 {{ formatDate(article.createdAt) }}
+              </span>
+              <span v-if="article.updatedAt" class="meta-item">
+                <el-icon><Clock /></el-icon>
+                更新 {{ formatDate(article.updatedAt) }}
               </span>
               <span class="meta-item">
                 <el-icon><View /></el-icon>
@@ -165,7 +172,7 @@ import { listArticleComments, createComment, likeComment } from '../api/comment'
 import { MdPreview, MdCatalog } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import { ElMessage } from 'element-plus'
-import { Pointer, Star, Share } from '@element-plus/icons-vue'
+import { Pointer, Star, Share, Calendar, View, Clock } from '@element-plus/icons-vue'
 import { pushArticleHistory, isFavorite, toggleFavorite } from '../utils/portalStorage'
 
 const route = useRoute()
@@ -417,12 +424,26 @@ async function submitComment() {
   margin-bottom: 20px;
 }
 
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.title-row .pin-tag {
+  flex-shrink: 0;
+}
+
 .title {
   font-size: clamp(1.6rem, 4vw, 2.25rem);
   font-weight: 800;
   color: var(--portal-text, #1e293b);
-  margin-bottom: 16px;
+  margin: 0;
   line-height: 1.25;
+  flex: 1;
+  min-width: 0;
 }
 
 .meta {

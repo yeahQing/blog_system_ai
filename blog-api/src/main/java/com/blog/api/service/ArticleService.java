@@ -1,5 +1,6 @@
 package com.blog.api.service;
 
+import com.blog.api.dto.ArticleSaveRequest;
 import com.blog.api.entity.Article;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,7 +13,7 @@ import java.util.Optional;
  */
 public interface ArticleService {
 
-    Article saveArticle(Article article);
+    Article saveArticle(ArticleSaveRequest request);
 
     Optional<Article> getArticleForAdminById(Long id);
 
@@ -23,7 +24,10 @@ public interface ArticleService {
      */
     Page<Article> getPortalArticles(Long categoryId, Long tagId, String keyword, Pageable pageable);
 
-    Page<Article> getArticlesForAdmin(String keyword, Pageable pageable);
+    /**
+     * @param isDraft null 表示全部；true 草稿；false 已发布
+     */
+    Page<Article> getArticlesForAdmin(String keyword, Boolean isDraft, Pageable pageable);
 
     void deleteArticle(Long id);
 
@@ -42,4 +46,7 @@ public interface ArticleService {
      * 管理端：下架为草稿（前台不可见）
      */
     Article unpublishArticle(Long id);
+
+    /** 管理端：置顶 / 取消置顶 */
+    Article setArticlePinned(Long id, boolean pinned);
 }

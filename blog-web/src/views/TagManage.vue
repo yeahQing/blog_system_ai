@@ -114,6 +114,7 @@ const handleSave = async () => {
     ElMessage.warning('请输入名称')
     return
   }
+  if (saving.value) return
   saving.value = true
   try {
     const res: any = await saveTag({ name: n })

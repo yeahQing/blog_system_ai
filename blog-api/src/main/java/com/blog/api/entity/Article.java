@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -28,29 +29,35 @@ public class Article {
     private Long id;
 
     @Column(nullable = false)
-    private String title;      // 标题
+    private String title;
 
     @Column(columnDefinition = "TEXT")
-    private String content;    // Markdown 原始内容
+    private String content;
 
     @Column(columnDefinition = "TEXT")
-    private String htmlContent; // 渲染后的 HTML 内容 (用于缓存或前台快速展示)
+    private String htmlContent;
 
-    private String summary;    // 摘要
+    private String summary;
 
-    private String cover;      // 封面图 URL
-
-    @Builder.Default
-    private Integer views = 0; // 阅读量
+    private String cover;
 
     @Builder.Default
-    private Integer likeCount = 0; // 点赞数
+    private Integer views = 0;
 
     @Builder.Default
-    private Boolean isDraft = true; // 是否为草稿
+    private Integer likeCount = 0;
 
     @Builder.Default
-    private Boolean isDeleted = false; // 是否逻辑删除
+    private Boolean isDraft = true;
+
+    @Builder.Default
+    private Boolean isDeleted = false;
+
+    /** 置顶：前台列表同条件下优先展示（须带 DB 默认值，否则已有行在 ADD COLUMN 时为 NULL 会违反 NOT NULL） */
+    @Builder.Default
+    @ColumnDefault("false")
+    @Column(nullable = false)
+    private Boolean pinned = false;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -60,7 +67,7 @@ public class Article {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "category_id")
-    private Category category; // 文章分类
+    private Category category;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

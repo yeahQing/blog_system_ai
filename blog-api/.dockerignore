@@ -1,0 +1,9 @@
+# 只把 layertools 分层目录送入构建上下文
+src/
+pom.xml
+.idea/
+*.iml
+.git
+target/*
+!target/docker-layers
+!target/docker-layers/**

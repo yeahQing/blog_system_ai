@@ -1,6 +1,7 @@
 package com.blog.api.service;
 
 import com.blog.api.entity.Category;
+import com.blog.api.repository.ArticleRepository;
 import com.blog.api.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import java.util.List;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final ArticleRepository articleRepository;
 
     @Override
     public List<Category> getAllCategories() {
@@ -36,6 +38,10 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public void deleteCategory(Long id) {
         log.warn("删除分类, ID: {}", id);
+        int cleared = articleRepository.clearCategoryByCategoryId(id);
+        if (cleared > 0) {
+            log.info("已将该分类从 {} 篇文章上解除关联（category 置空）", cleared);
+        }
         categoryRepository.deleteById(id);
     }
 }

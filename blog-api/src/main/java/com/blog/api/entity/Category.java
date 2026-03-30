@@ -24,6 +24,10 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    public Long getId() {
+        return id;
+    }
+
     @Column(unique = true, nullable = false)
     private String name;    // 分类名称
 
