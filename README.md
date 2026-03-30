@@ -82,7 +82,40 @@ docker compose -f docker-compose.app.images.yml --env-file .env up -d
 # 或在服务器 build：docker compose -f docker-compose.app.yml --env-file .env up -d --build
 ```
 
-**仅升级前后端（推荐）：** 不要对 `docker-compose.infra.yml` 再执行 `up`/`down`。只操作 **blog-app** 项目：
+### 服务器上本地 build（`docker-compose.app.yml`）
+
+在服务器上保留完整仓库（含 `blog-api/`、`blog-web/`），**在容器里用 Dockerfile 现打镜像**，不依赖 `docker load` 的 tar。须先启动中间件：`docker compose -f docker-compose.infra.yml --env-file .env up -d`。
+
+发版前先在本机或服务器上完成产物（与上文「`docker-compose.app.yml --build` 前」一致）：
+
+```bash
+( cd blog-api && mvn -DskipTests package )
+( cd blog-web && VITE_API_URL=/api npm ci && VITE_API_URL=/api npm run build )
+```
+
+在 **`deploy/`** 目录执行（**HTTP** 仅用第一个 `-f`；**HTTPS** 再叠加 `docker-compose.app.https.yml`，证书与说明见 [deploy/DEPLOY.md](deploy/DEPLOY.md)）：
+
+```bash
+cd deploy
+
+# 只重建并启动后端
+docker compose -f docker-compose.app.yml -f docker-compose.app.https.yml --env-file .env up -d --build blog-api
+
+# 只重建并启动前端
+docker compose -f docker-compose.app.yml -f docker-compose.app.https.yml --env-file .env up -d --build blog-web
+
+# 前后端一起更新
+docker compose -f docker-compose.app.yml -f docker-compose.app.https.yml --env-file .env up -d --build
+```
+
+说明：
+
+- 指定服务名 **`blog-api`** / **`blog-web`** 时，只 build/重建对应容器，**不会动** `docker-compose.infra.yml` 里的 PostgreSQL / Redis。
+- 代码需先同步到服务器（如 `git pull`），再执行 `mvn` / `npm run build`，最后 `docker compose ... --build`。
+- **仅修改 `.env`**、不改代码与镜像：去掉 `--build`，执行 `docker compose ... up -d` 即可让容器使用新环境变量。
+- 若**不用 HTTPS**，去掉 `-f docker-compose.app.https.yml` 即可。
+
+**仅升级前后端（推荐，使用预构建镜像）：** 不要对 `docker-compose.infra.yml` 再执行 `up`/`down`。只操作 **blog-app** 项目：
 
 ```bash
 docker load -i blog-app-images.tar   # 若使用 tar 更新镜像
