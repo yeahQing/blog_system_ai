@@ -16,6 +16,18 @@
         />
       </div>
       <div class="toolbar-right">
+        <el-tooltip content="根据正文生成标题候选（需配置 MiniMax）" placement="bottom">
+          <el-button :loading="aiTitlesLoading" @click="onAiTitles">
+            <el-icon><MagicStick /></el-icon>
+            AI 标题
+          </el-button>
+        </el-tooltip>
+        <el-tooltip content="根据正文生成摘要，写入设置中的摘要字段" placement="bottom">
+          <el-button :loading="aiSummaryLoading" @click="onAiSummary">
+            <el-icon><MagicStick /></el-icon>
+            AI 摘要
+          </el-button>
+        </el-tooltip>
         <el-button @click="showSettings = true">
           <el-icon><Setting /></el-icon>
           设置
@@ -60,9 +72,29 @@
         </el-form-item>
         <el-form-item label="封面图 URL">
           <el-input v-model="article.cover" placeholder="https://..." type="textarea" :rows="2" />
+          <el-button
+            class="cover-ai-btn"
+            type="primary"
+            link
+            :loading="coverGenBusy || coverConfirmLoading"
+            @click="onAiCover"
+          >
+            <el-icon class="el-icon--left"><MagicStick /></el-icon>
+            AI 生成封面（标题+摘要）
+          </el-button>
         </el-form-item>
         <el-form-item label="摘要">
           <el-input v-model="article.summary" type="textarea" :rows="5" placeholder="列表页与 SEO 摘要" />
+          <el-button
+            class="summary-ai-btn"
+            type="primary"
+            link
+            :loading="aiSummaryLoading"
+            @click="onAiSummary"
+          >
+            <el-icon class="el-icon--left"><MagicStick /></el-icon>
+            用 AI 生成摘要
+          </el-button>
         </el-form-item>
         <el-form-item label="置顶">
           <el-switch v-model="article.pinned" active-text="前台列表优先展示" />
@@ -89,6 +121,48 @@
         <el-button type="primary" @click="showSettings = false">完成</el-button>
       </template>
     </el-drawer>
+
+    <el-dialog
+      v-model="coverPreviewDialogVisible"
+      title="AI 封面预览"
+      width="min(720px, 92vw)"
+      append-to-body
+      destroy-on-close
+      :close-on-click-modal="false"
+      :z-index="40150"
+      class="cover-preview-dialog"
+      @closed="onCoverPreviewDialogClosed"
+    >
+      <div v-if="coverGenBusy" class="cover-gen-progress">
+        <p class="cover-gen-hint">
+          正在调用文生图模型生成封面，过程较慢，请耐心等待（通常需数十秒至数分钟）…
+        </p>
+        <el-progress :percentage="coverProgressShown" :stroke-width="10" />
+      </div>
+      <div v-else-if="coverPreviewBase64" class="cover-preview-body">
+        <img :src="coverPreviewDataUrl" alt="封面预览" class="cover-preview-img" />
+        <div class="cover-preview-actions">
+          <el-button :disabled="coverConfirmLoading" @click="runCoverPreview">重新生成</el-button>
+          <el-button type="primary" :loading="coverConfirmLoading" @click="confirmCoverToHost">采用为封面</el-button>
+        </div>
+      </div>
+      <div v-else-if="coverPreviewFailed" class="cover-preview-fail">
+        <p>生成失败，请检查网络或稍后重试。</p>
+        <el-button type="primary" @click="runCoverPreview">重试</el-button>
+      </div>
+    </el-dialog>
+
+    <el-dialog v-model="titlePickVisible" title="选择标题" width="480px" append-to-body>
+      <el-radio-group v-model="pickedTitle" class="title-pick-group">
+        <el-radio v-for="(t, i) in titleSuggestions" :key="i" :label="t" class="title-pick-item">
+          {{ t }}
+        </el-radio>
+      </el-radio-group>
+      <template #footer>
+        <el-button @click="titlePickVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!pickedTitle" @click="applyPickedTitle">使用此标题</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -99,7 +173,14 @@ import { MdEditor } from 'md-editor-v3'
 import type { ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { saveArticle, getAdminArticleDetail } from '../api/article'
+import {
+  saveArticle,
+  getAdminArticleDetail,
+  aiGenerateSummary,
+  aiSuggestTitles,
+  aiGenerateCoverPreview,
+  aiConfirmCoverUpload
+} from '../api/article'
 import { listCategories } from '../api/category'
 import { listAdminTags } from '../api/tag'
 
@@ -110,6 +191,41 @@ const route = useRoute()
 const router = useRouter()
 const showSettings = ref(false)
 const loading = ref(false)
+const aiSummaryLoading = ref(false)
+const aiTitlesLoading = ref(false)
+const coverPreviewDialogVisible = ref(false)
+const coverGenBusy = ref(false)
+const coverConfirmLoading = ref(false)
+const coverPreviewBase64 = ref<string | null>(null)
+const coverPreviewMime = ref('image/jpeg')
+const coverPreviewFailed = ref(false)
+/** 文生图等待期假进度 0–99，渐近上限，完成或关闭时归零 */
+const coverFakeProgress = ref(0)
+let coverProgressTimer: ReturnType<typeof setInterval> | null = null
+
+const coverProgressShown = computed(() =>
+  Math.min(99, Math.floor(coverFakeProgress.value))
+)
+
+function startCoverFakeProgress() {
+  stopCoverFakeProgress()
+  coverFakeProgress.value = 0
+  coverProgressTimer = window.setInterval(() => {
+    const p = coverFakeProgress.value
+    if (p >= 99) return
+    coverFakeProgress.value = Math.min(99, p + Math.max(0.12, (99 - p) * 0.055))
+  }, 100)
+}
+
+function stopCoverFakeProgress() {
+  if (coverProgressTimer != null) {
+    clearInterval(coverProgressTimer)
+    coverProgressTimer = null
+  }
+}
+const titlePickVisible = ref(false)
+const titleSuggestions = ref<string[]>([])
+const pickedTitle = ref('')
 /** 避免 md-editor-v3 在首帧 ref 未就绪时 MutationObserver.observe(null) */
 const editorMountReady = ref(false)
 const categories = ref<{ id: number; name: string }[]>([])
@@ -117,6 +233,13 @@ const allTags = ref<{ id: number; name: string }[]>([])
 
 const viewportH = ref(typeof window !== 'undefined' ? window.innerHeight : 800)
 const editorHeight = computed(() => `${Math.max(380, viewportH.value - 200)}px`)
+
+const coverPreviewDataUrl = computed(() => {
+  const b64 = coverPreviewBase64.value
+  if (!b64) return ''
+  const mime = coverPreviewMime.value || 'image/jpeg'
+  return `data:${mime};base64,${b64}`
+})
 
 const article = reactive({
   id: null as number | null,
@@ -270,7 +393,10 @@ watch(
   }
 )
 
-onUnmounted(() => window.removeEventListener('resize', onResize))
+onUnmounted(() => {
+  stopCoverFakeProgress()
+  window.removeEventListener('resize', onResize)
+})
 
 const goBack = () => router.push('/admin/articles')
 
@@ -322,6 +448,126 @@ const handleSave = async (isDraft: boolean) => {
 
 const onUploadImg = async (_files: File[], _callback: (urls: string[]) => void) => {
   ElMessage.info('图片上传请使用外链 URL 或后续接入对象存储')
+}
+
+function requireContentForAi() {
+  if (!article.content?.trim()) {
+    ElMessage.warning('请先编写正文')
+    return false
+  }
+  return true
+}
+
+const onAiSummary = async () => {
+  if (!requireContentForAi()) return
+  aiSummaryLoading.value = true
+  try {
+    const res: any = await aiGenerateSummary({ title: article.title, content: article.content })
+    if (res.code === 200 && res.data?.summary != null) {
+      article.summary = res.data.summary
+      ElMessage.success('已填入摘要，可在「设置」中修改')
+      showSettings.value = true
+    }
+  } catch {
+    /* 503 等由拦截器提示 */
+  } finally {
+    aiSummaryLoading.value = false
+  }
+}
+
+const onAiTitles = async () => {
+  if (!requireContentForAi()) return
+  aiTitlesLoading.value = true
+  try {
+    const res: any = await aiSuggestTitles({ title: article.title, content: article.content })
+    if (res.code === 200 && Array.isArray(res.data?.titles) && res.data.titles.length > 0) {
+      titleSuggestions.value = res.data.titles
+      pickedTitle.value = res.data.titles[0]
+      titlePickVisible.value = true
+    } else {
+      ElMessage.warning('未返回标题建议，请稍后重试')
+    }
+  } catch {
+    /* 拦截器提示 */
+  } finally {
+    aiTitlesLoading.value = false
+  }
+}
+
+const applyPickedTitle = () => {
+  if (pickedTitle.value) {
+    article.title = pickedTitle.value
+  }
+  titlePickVisible.value = false
+}
+
+const onAiCover = () => {
+  if (!article.title?.trim()) {
+    ElMessage.warning('请先填写文章标题')
+    return
+  }
+  showSettings.value = true
+  coverPreviewFailed.value = false
+  coverPreviewBase64.value = null
+  coverPreviewDialogVisible.value = true
+  runCoverPreview()
+}
+
+const runCoverPreview = async () => {
+  if (!article.title?.trim()) {
+    ElMessage.warning('请先填写文章标题')
+    return
+  }
+  startCoverFakeProgress()
+  coverGenBusy.value = true
+  coverPreviewFailed.value = false
+  try {
+    const res: any = await aiGenerateCoverPreview({
+      title: article.title.trim(),
+      summary: article.summary?.trim() || undefined
+    })
+    if (res.code === 200 && res.data?.imageBase64) {
+      coverPreviewBase64.value = res.data.imageBase64
+      coverPreviewMime.value = res.data.mimeType || 'image/jpeg'
+    } else {
+      coverPreviewFailed.value = true
+      ElMessage.warning(res.message || '未返回预览图')
+    }
+  } catch {
+    coverPreviewFailed.value = true
+  } finally {
+    stopCoverFakeProgress()
+    coverFakeProgress.value = 0
+    coverGenBusy.value = false
+  }
+}
+
+const onCoverPreviewDialogClosed = () => {
+  stopCoverFakeProgress()
+  coverFakeProgress.value = 0
+  coverPreviewBase64.value = null
+  coverPreviewFailed.value = false
+  coverPreviewMime.value = 'image/jpeg'
+}
+
+const confirmCoverToHost = async () => {
+  const b64 = coverPreviewBase64.value
+  if (!b64) return
+  coverConfirmLoading.value = true
+  try {
+    const res: any = await aiConfirmCoverUpload({ imageBase64: b64 })
+    if (res.code === 200 && res.data?.coverUrl) {
+      article.cover = res.data.coverUrl
+      coverPreviewDialogVisible.value = false
+      ElMessage.success('已填入封面链接，可继续修改后保存')
+    } else {
+      ElMessage.warning(res.message || '上传失败')
+    }
+  } catch {
+    /* 拦截器提示 */
+  } finally {
+    coverConfirmLoading.value = false
+  }
 }
 </script>
 
@@ -425,6 +671,72 @@ const onUploadImg = async (_files: File[], _callback: (urls: string[]) => void) 
   padding: 0;
   height: auto;
   font-size: 13px;
+}
+
+.summary-ai-btn {
+  margin-top: 8px;
+}
+
+.cover-ai-btn {
+  margin-top: 8px;
+}
+
+.cover-preview-dialog .cover-gen-progress {
+  padding: 8px 0 16px;
+}
+
+.cover-preview-dialog .cover-gen-hint {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #606266;
+}
+
+.cover-preview-dialog .cover-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.cover-preview-dialog .cover-preview-img {
+  width: 100%;
+  max-height: min(56vh, 420px);
+  object-fit: contain;
+  border-radius: 8px;
+  background: #f5f7fa;
+  border: 1px solid #ebeef5;
+}
+
+.cover-preview-dialog .cover-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cover-preview-dialog .cover-preview-fail {
+  text-align: center;
+  padding: 24px 8px;
+  color: #606266;
+}
+
+.cover-preview-dialog .cover-preview-fail p {
+  margin: 0 0 16px;
+}
+
+.title-pick-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.title-pick-item {
+  margin: 0 !important;
+  height: auto;
+  white-space: normal;
+  align-items: flex-start;
 }
 
 @media (max-width: 768px) {

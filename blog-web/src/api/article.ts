@@ -86,3 +86,43 @@ export function getRelatedArticles(id: number | string, limit = 5) {
     params: { limit }
   })
 }
+
+/** 管理端：MiniMax 生成摘要（需登录与后端启用 AI） */
+export function aiGenerateSummary(data: { title?: string; content: string }) {
+  return request({
+    url: '/admin/article/ai/summary',
+    method: 'post',
+    data,
+    timeout: 120000
+  })
+}
+
+/** 管理端：MiniMax 标题建议 */
+export function aiSuggestTitles(data: { title?: string; content: string }) {
+  return request({
+    url: '/admin/article/ai/titles',
+    method: 'post',
+    data,
+    timeout: 120000
+  })
+}
+
+/** 管理端：MiniMax 文生图，仅返回 Base64 预览（不上传图床） */
+export function aiGenerateCoverPreview(data: { title: string; summary?: string }) {
+  return request({
+    url: '/admin/article/ai/cover/preview',
+    method: 'post',
+    data,
+    timeout: 200000
+  })
+}
+
+/** 管理端：将预览图上传到闪电图床，返回封面 URL */
+export function aiConfirmCoverUpload(data: { imageBase64: string }) {
+  return request({
+    url: '/admin/article/ai/cover/confirm',
+    method: 'post',
+    data,
+    timeout: 120000
+  })
+}

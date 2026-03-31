@@ -80,6 +80,9 @@ service.interceptors.response.use(
         case 500:
           ElMessage.error(data.message || '服务器错误')
           break
+        case 503:
+          ElMessage.error(data?.message || '服务暂不可用')
+          break
         default:
           ElMessage.error(data?.message || '请求失败')
       }
