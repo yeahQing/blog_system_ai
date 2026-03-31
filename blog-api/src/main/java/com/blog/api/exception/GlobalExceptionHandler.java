@@ -12,4 +12,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Result<Void>> badRequest(IllegalArgumentException e) {
         return ResponseEntity.badRequest().body(Result.error(400, e.getMessage()));
     }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Result<Void>> serviceUnavailable(IllegalStateException e) {
+        return ResponseEntity.status(503).body(Result.error(503, e.getMessage()));
+    }
 }

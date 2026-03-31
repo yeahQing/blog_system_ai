@@ -82,6 +82,11 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("UPDATE Article a SET a.likeCount = COALESCE(a.likeCount, 0) + 1 WHERE a.id = :id AND a.isDeleted = false AND a.isDraft = false")
     int incrementLikeCount(@Param("id") Long id);
 
+    /** 前台阅读数 +1；用 UPDATE 避免对 Article 做 save 时连带 flush 多对多关联 */
+    @Modifying(clearAutomatically = false, flushAutomatically = true)
+    @Query("UPDATE Article a SET a.views = COALESCE(a.views, 0) + 1 WHERE a.id = :id AND a.isDeleted = false AND a.isDraft = false")
+    int incrementViews(@Param("id") Long id);
+
     /** 删除分类前：解除所有文章对该分类的外键引用 */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Article a SET a.category = null WHERE a.category.id = :categoryId")

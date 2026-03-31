@@ -1,3 +1,8 @@
+# 封面确认上传为 JSON Base64，需放宽 Tomcat 请求体上限（默认约 2MB）
+server:
+  tomcat:
+    max-http-form-post-size: 10MB
+
 spring:
   application:
     name: blog-api
@@ -9,6 +14,23 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+
+  # MiniMax（管理端 AI 摘要/标题）；未启用时 model.chat=none，不创建 ChatModel Bean
+  # base-url 须与 Spring AI 一致：仅 host（如 https://api.minimax.chat），客户端会再请求 /v1/text/chatcompletion_v2
+  # 勿使用错误域名（如 api.minimaxi.com）或带 /v1 后缀，否则易 HTTP 404
+  ai:
+    model:
+      chat: ${SPRING_AI_MODEL_CHAT:minimax}
+      # 仅使用 MiniMax Chat，不使用 Embedding；否则会要求 API Key 并创建 miniMaxEmbeddingModel 导致未配 Key 时启动失败
+      embedding: none
+    minimax:
+      api-key: ${MINIMAX_API_KEY:}
+      base-url: ${MINIMAX_BASE_URL:https://api.minimax.chat}
+      chat:
+        options:
+          model: ${MINIMAX_MODEL:MiniMax-M2.7}
+          temperature: 0.4
+          max-tokens: 1024
 
 # 腾讯云 COS 配置
 tencent:
@@ -26,6 +48,8 @@ jwt:
 
 # 前台站点与博主（可被后台「站点设置」覆盖写入数据库）
 blog:
+  # 与 pom.xml project.version 一致（由 Maven 资源过滤写入）
+  version: @project.version@
   site:
     nav-title: AI BLOG
     nav-logo-url: ""
@@ -35,10 +59,38 @@ blog:
     author-bio: 全栈开发者 · 记录技术、阅读与生活
     author-avatar: https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png
     footer-text: "© {year} AI BLOG · Powered by Vue 3 & Spring Boot"
+  # RestTemplate 连接/读取超时（毫秒）；不配置时 JDK 客户端可能无限等待，文生图卡住时线程永不返回
+  http-client:
+    connect-timeout-ms: ${HTTP_CLIENT_CONNECT_TIMEOUT_MS:15000}
+    # 读取超时默认 3 分钟（180000ms），覆盖 MiniMax 文生图 + 图床上传整段 HTTP 等待
+    read-timeout-ms: ${HTTP_CLIENT_READ_TIMEOUT_MS:180000}
+  # 管理端「AI 封面」：MiniMax 文生图（https://platform.minimaxi.com/docs/api-reference/image-generation-t2i）+ 闪电图床
+  ai-cover:
+    # 封面专用 HTTP 客户端超时（毫秒），与全局 blog.http-client 分离，到点会抛异常并返回
+    http-connect-timeout-ms: ${AI_COVER_HTTP_CONNECT_TIMEOUT_MS:10000}
+    http-read-timeout-ms: ${AI_COVER_HTTP_READ_TIMEOUT_MS:90000}
+    minimax-image-url: ${MINIMAX_IMAGE_URL:https://api.minimaxi.com/v1/image_generation}
+    image-model: ${MINIMAX_IMAGE_MODEL:image-01}
+    # 同时设置且合法时只传 width+height（不传 aspect_ratio）；默认 1280×720 为 16:9；任一为 0 则仅用 aspect-ratio
+    width: ${MINIMAX_IMAGE_WIDTH:1280}
+    height: ${MINIMAX_IMAGE_HEIGHT:720}
+    aspect-ratio: ${MINIMAX_IMAGE_ASPECT_RATIO:16:9}
+    response-format: ${MINIMAX_IMAGE_RESPONSE_FORMAT:url}
+    image-n: ${MINIMAX_IMAGE_N:1}
+    prompt-optimizer: ${MINIMAX_IMAGE_PROMPT_OPTIMIZER:false}
+    aigc-watermark: ${MINIMAX_IMAGE_AIGC_WATERMARK:false}
+  boltp:
+    upload-url: ${BOLTP_UPLOAD_URL:https://www.boltp.com/api/v2/upload}
+    token: ${BOLTP_TOKEN:}
+    storage-id: ${BOLTP_STORAGE_ID:2}
+    album-id: ${BOLTP_ALBUM_ID:282}
+    # bearer：Authorization Bearer；form-token：multipart 增加字段 token（按图床文档选择）
+    auth-mode: ${BOLTP_AUTH_MODE:bearer}
 
 logging:
   charset:
     console: UTF-8
+    file: UTF-8
   level:
     com.blog.api: INFO
     org.springframework.web: INFO

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 与 application*.yml 中 logging.charset.file 一致（file-appender 使用 ${FILE_LOG_CHARSET}） -->
+    <springProperty name="FILE_LOG_CHARSET" source="logging.charset.file" defaultValue="UTF-8"/>
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 控制台编码：Windows 默认终端多为 GBK，UTF-8 字节按 GBK 解码会乱码；dev 下见 application-dev.yml -->
+    <springProperty name="CONSOLE_CHARSET" source="logging.charset.console" defaultValue="UTF-8"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>${CONSOLE_LOG_THRESHOLD:-TRACE}</level>
+        </filter>
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>${CONSOLE_CHARSET}</charset>
+        </encoder>
+    </appender>
+
+    <include resource="org/springframework/boot/logging/logback/file-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

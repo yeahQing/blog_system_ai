@@ -28,6 +28,11 @@ spring:
       password: ${REDIS_PASSWORD:redis_password}
 
 logging:
+  # 本机 Windows PowerShell/CMD 默认代码页多为 GBK；控制台用 UTF-8 输出时中文路径仍会乱码，故 dev 用 GBK
+  # 若已执行 chcp 65001 或使用仅 UTF-8 的终端，可改为 UTF-8
+  charset:
+    console: GBK
+    file: UTF-8
   level:
     com.blog.api: DEBUG
     org.springframework.web: INFO

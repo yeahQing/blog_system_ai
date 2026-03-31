@@ -7,6 +7,8 @@
 | `blog-api/` | Spring Boot 3.2 + Java 21，REST API、JWT、JPA、Redis 等 |
 | `blog-web/` | Vue 3 + TypeScript + Vite，Element Plus、Pinia、md-editor-v3 |
 
+**版本与发版**：根目录 `VERSION` 与 [CHANGELOG.md](./CHANGELOG.md) 为单一语义化版本；迭代脚本 `node scripts/bump-version.mjs <x.y.z>`；说明见 [docs/RELEASE.md](./docs/RELEASE.md)。
+
 ## 环境要求
 
 - **后端**：JDK 21、Maven 3.8+；PostgreSQL、Redis（按 `application-*.yml` 配置）
@@ -18,6 +20,8 @@
 cd blog-api
 mvn spring-boot:run
 ```
+
+（Windows PowerShell 若控制台中文日志乱码，可先执行 `chcp 65001` 再运行 Maven。）
 
 默认端口与数据源等见 `blog-api/src/main/resources/application.yml` 及 `application-dev.yml` / `application-prod.yml`。敏感配置通过环境变量注入，勿将真实密钥写入仓库。
 

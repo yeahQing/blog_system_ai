@@ -3,7 +3,6 @@ package com.blog.api.service;
 import com.blog.api.dto.ArticleSaveRequest;
 import com.blog.api.entity.Article;
 import com.blog.api.entity.Category;
-import com.blog.api.entity.Tag;
 import com.blog.api.repository.ArticleRepository;
 import com.blog.api.repository.CategoryRepository;
 import com.blog.api.repository.TagRepository;
@@ -17,7 +16,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -57,26 +55,28 @@ public class ArticleServiceImpl implements ArticleService {
             return;
         }
         Set<Long> ids = tagIds.stream().filter(id -> id != null).collect(Collectors.toSet());
-        Set<Tag> next = new HashSet<>();
+        target.getTags().clear();
         for (Long id : ids) {
-            tagRepository.findById(id).ifPresent(next::add);
+            tagRepository.findById(id).ifPresent(t -> target.getTags().add(t));
         }
-        target.setTags(next);
     }
 
-    /** 从中间表组装 tags，供 JSON 序列化（懒加载集合在列表/详情中否则常为空） */
+    /**
+     * 从中间表组装 tags，供 JSON 序列化（懒加载集合在列表/详情中否则常为空）。
+     * 必须在 Hibernate 管理的集合上 clear/addAll，禁止 setTags(新 HashSet) 替换 PersistentSet，否则会破坏关联跟踪，
+     * 在详情接口里再 save 文章时可能刷写中间表异常（线上表现为接口失败）。
+     */
     private void attachTagsFromJoinTable(Article article) {
         if (article.getId() == null) {
             return;
         }
         List<Long> tagIds = articleRepository.findTagIdsByArticleId(article.getId());
-        Set<Tag> tags = new HashSet<>();
+        article.getTags().clear();
         for (Long tid : tagIds) {
             if (tid != null) {
-                tagRepository.findById(tid).ifPresent(tags::add);
+                tagRepository.findById(tid).ifPresent(t -> article.getTags().add(t));
             }
         }
-        article.setTags(tags);
     }
 
     @Override
@@ -144,8 +144,10 @@ public class ArticleServiceImpl implements ArticleService {
         }
         Article article = opt.get();
         attachTagsFromJoinTable(article);
-        article.setViews(article.getViews() + 1);
-        return Optional.of(articleRepository.save(article));
+        if (articleRepository.incrementViews(id) > 0) {
+            article.setViews((article.getViews() != null ? article.getViews() : 0) + 1);
+        }
+        return Optional.of(article);
     }
 
     @Override
@@ -183,7 +185,9 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    @Transactional
     public void incrementViews(Long id) {
+        articleRepository.incrementViews(id);
     }
 
     @Override

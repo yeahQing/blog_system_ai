@@ -1,19 +1,22 @@
 package com.blog.api;
 
-import com.blog.api.entity.User;
-import com.blog.api.repository.UserRepository;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.model.minimax.autoconfigure.MiniMaxEmbeddingAutoConfiguration;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.blog.api.entity.User;
+import com.blog.api.repository.UserRepository;
+
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * 博客系统后端入口
  */
 @Slf4j
-@SpringBootApplication
+@SpringBootApplication(exclude = { MiniMaxEmbeddingAutoConfiguration.class })
 public class BlogApiApplication {
 
     public static void main(String[] args) {
