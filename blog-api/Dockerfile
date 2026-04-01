@@ -10,6 +10,9 @@ COPY target/docker-layers/spring-boot-loader/ ./
 COPY target/docker-layers/snapshot-dependencies/ ./
 COPY target/docker-layers/application/ ./
 
+# logback 写入 logging.file.name（默认 logs/blog-api.log → /app/logs/）；非 root 无法自行 mkdir /app/logs
+RUN mkdir -p /app/logs && chown spring:spring /app/logs
+
 USER spring:spring
 ENV SPRING_PROFILES_ACTIVE=prod
 EXPOSE 8080

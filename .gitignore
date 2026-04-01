@@ -13,8 +13,7 @@ blog-api/*.iml
 blog-api/.classpath
 blog-api/.project
 blog-api/.settings/
-# logback 未正确配置 file 名时可能误生成
-blog-api/LOG_FILE_IS_UNDEFINED
+blog-api/logs/
 
 # 密钥与本地环境（两子项目内也不要提交真实 .env）
 .env

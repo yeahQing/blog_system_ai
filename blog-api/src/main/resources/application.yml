@@ -88,6 +88,9 @@ blog:
     auth-mode: ${BOLTP_AUTH_MODE:bearer}
 
 logging:
+  # 必填：自定义 logback-spring.xml 引入了 file-appender.xml，未设置时 LOG_FILE 会变成字面量 LOG_FILE_IS_UNDEFINED
+  file:
+    name: logs/blog-api.log
   charset:
     console: UTF-8
     file: UTF-8
