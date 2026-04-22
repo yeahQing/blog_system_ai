@@ -4,7 +4,7 @@
     <el-aside width="240px" class="aside">
       <div class="aside-header" @click="$router.push('/')">
         <el-icon class="logo-icon"><Platform /></el-icon>
-        <span class="logo-text">管理控制台</span>
+        <span class="logo-text">博客管理系统</span>
       </div>
       
       <el-menu
@@ -45,6 +45,20 @@
           <span>系统管理</span>
         </el-menu-item>
       </el-menu>
+
+      <div class="aside-footer">
+        <div class="beian-row">
+          <img src="/beian-logo.png" alt="公安备案" class="beian-icon" />
+          <a href="https://beian.mps.gov.cn/#/query/webSearch?code=37011202002747" rel="noreferrer noopener" target="_blank" class="beian-link">
+            鲁公网安备37011202002747号
+          </a>
+        </div>
+        <div class="beian-row">
+          <a href="https://beian.miit.gov.cn/#/Integrated/index" rel="noreferrer noopener" target="_blank" class="beian-link">
+            鲁ICP备2026016667号-1
+          </a>
+        </div>
+      </div>
     </el-aside>
 
     <el-container class="main-container">
@@ -217,5 +231,38 @@ const handleCommand = (command: string) => {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
+}
+
+.aside-footer {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #001529;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.beian-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.beian-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.beian-link {
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  font-size: 11px;
+  transition: color 0.2s;
+}
+
+.beian-link:hover {
+  color: #fff;
 }
 </style>
