@@ -40,7 +40,17 @@
 
       <el-footer class="footer">
         <div class="footer-content">
-          <p>{{ footerLine }}</p>
+          <div class="footer-main">{{ footerLine }}</div>
+          <div class="beian-info">
+            <img src="/beian-logo.png" alt="公安备案" class="beian-icon" />
+            <a href="https://beian.mps.gov.cn/#/query/webSearch?code=37011202002747" rel="noreferrer noopener" target="_blank" class="beian-link">
+              鲁公网安备37011202002747号
+            </a>
+            <span class="beian-sep">|</span>
+            <a href="https://beian.miit.gov.cn/#/Integrated/index" rel="noreferrer noopener" target="_blank" class="beian-link">
+              鲁ICP备2026016667号-1
+            </a>
+          </div>
         </div>
       </el-footer>
 
@@ -245,9 +255,51 @@ provide('portalSite', site)
   min-height: 100%;
 }
 
-.footer-content p {
-  margin: 0;
+.footer-content {
+  width: 100%;
+  max-width: 100%;
+  padding: 0 clamp(16px, 4vw, 40px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  gap: 6px;
+}
+
+.footer-main {
   line-height: 1.5;
+}
+
+.beian-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.beian-link {
+  color: var(--portal-muted, #94a3b8);
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.beian-link:hover {
+  color: var(--portal-text, #1e293b);
+}
+
+.beian-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.beian-sep {
+  color: var(--portal-muted, #94a3b8);
+  font-size: 13px;
 }
 
 /* 覆盖 el-footer 默认固定高度，使文案在页脚条带内垂直居中 */
