@@ -40,6 +40,36 @@
           <el-icon><Link /></el-icon>
           <span>常用链接</span>
         </el-menu-item>
+        <el-sub-menu index="/admin/agent-group">
+          <template #title>
+            <el-icon><MagicStick /></el-icon>
+            <span>AI 控制台</span>
+          </template>
+          <el-menu-item index="/admin/agent">
+            <el-icon><ChatDotRound /></el-icon>
+            <span>创作助手</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/platform/models">
+            <el-icon><Cpu /></el-icon>
+            <span>模型管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/platform/prompts">
+            <el-icon><Document /></el-icon>
+            <span>提示词</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/platform/messages">
+            <el-icon><ChatLineRound /></el-icon>
+            <span>消息流</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/platform/vector-stores">
+            <el-icon><Coin /></el-icon>
+            <span>向量库</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/platform/memories">
+            <el-icon><Collection /></el-icon>
+            <span>记忆存储</span>
+          </el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/admin/system">
           <el-icon><Key /></el-icon>
           <span>系统管理</span>

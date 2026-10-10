@@ -114,6 +114,42 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '系统管理' }
       },
       {
+        path: 'agent',
+        name: 'AdminAgent',
+        component: () => import('../views/platform/AgentChat.vue'),
+        meta: { title: 'AI 创作助手' }
+      },
+      {
+        path: 'platform/models',
+        name: 'AdminAiModels',
+        component: () => import('../views/platform/AiModels.vue'),
+        meta: { title: '模型管理' }
+      },
+      {
+        path: 'platform/prompts',
+        name: 'AdminAiPrompts',
+        component: () => import('../views/platform/AiPrompts.vue'),
+        meta: { title: '提示词管理' }
+      },
+      {
+        path: 'platform/messages',
+        name: 'AdminAiMessages',
+        component: () => import('../views/platform/AiMessages.vue'),
+        meta: { title: '消息流' }
+      },
+      {
+        path: 'platform/vector-stores',
+        name: 'AdminAiVectorStores',
+        component: () => import('../views/platform/AiVectorStores.vue'),
+        meta: { title: '向量库' }
+      },
+      {
+        path: 'platform/memories',
+        name: 'AdminAiMemories',
+        component: () => import('../views/platform/AiMemories.vue'),
+        meta: { title: '记忆存储' }
+      },
+      {
         path: 'article/edit/:id?',
         name: 'ArticleEdit',
         component: () => import('../views/ArticleEdit.vue'),
