@@ -1,10 +1,25 @@
-# 仓库根目录：只纳入 blog-api、blog-web（以及本文件）
+# 仓库根目录：只纳入 blog-api、blog-web、deploy 部署文档（以及本文件）
 /*
 !.gitignore
 !README.md
-/deploy/*
+!CHANGELOG.md
+!VERSION
 !/blog-api/
 !/blog-web/
+!/deploy/
+
+# deploy：只跟踪文档、Compose 编排与脚本；证书、镜像 tar、.env、数据库数据目录不入库
+/deploy/*
+!/deploy/*.md
+!/deploy/.env.example
+!/deploy/build-images.sh
+!/deploy/rebuild-and-up.sh
+!/deploy/docker-compose.infra.yml
+!/deploy/docker-compose.app.yml
+!/deploy/docker-compose.app.images.yml
+!/deploy/docker-compose.app.https.yml
+!/deploy/docker-compose.dev.yml
+!/deploy/init-db.sql
 
 # blog-api：Maven / IDE（源码仍跟踪）
 blog-api/target/

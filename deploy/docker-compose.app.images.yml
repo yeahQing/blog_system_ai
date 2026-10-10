@@ -1,0 +1,71 @@
+# 业务容器（独立项目 blog-app）；加入已有网络 blog-network，通过容器名 blog-db / blog-redis 访问中间件
+# 须先启动 docker-compose.infra.yml
+# 首次 / 升级：docker load … 后执行
+#   docker compose -f docker-compose.app.images.yml --env-file .env up -d
+# 仅重启前后端、不碰 PostgreSQL / Redis
+name: blog-app
+
+services:
+  blog-api:
+    image: blog-app-api:latest
+    container_name: blog-api
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+      DB_HOST: blog-db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-blog}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: blog-redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      COS_SECRET_ID: ${COS_SECRET_ID:-}
+      COS_SECRET_KEY: ${COS_SECRET_KEY:-}
+      COS_REGION: ${COS_REGION:-ap-shanghai}
+      COS_BUCKET: ${COS_BUCKET:-}
+      COS_URL_PREFIX: ${COS_URL_PREFIX:-}
+      SPRING_AI_MODEL_CHAT: ${SPRING_AI_MODEL_CHAT:-none}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_BASE_URL: ${MINIMAX_BASE_URL:-https://api.minimax.chat}
+      MINIMAX_MODEL: ${MINIMAX_MODEL:-abab6.5g-chat}
+      MINIMAX_IMAGE_URL: ${MINIMAX_IMAGE_URL:-https://api.minimaxi.com/v1/image_generation}
+      MINIMAX_IMAGE_MODEL: ${MINIMAX_IMAGE_MODEL:-image-01}
+      BOLTP_UPLOAD_URL: ${BOLTP_UPLOAD_URL:-https://www.boltp.com/api/v2/upload}
+      BOLTP_TOKEN: ${BOLTP_TOKEN:-}
+      BOLTP_STORAGE_ID: ${BOLTP_STORAGE_ID:-2}
+      BOLTP_ALBUM_ID: ${BOLTP_ALBUM_ID:-282}
+      BOLTP_AUTH_MODE: ${BOLTP_AUTH_MODE:-bearer}
+    networks:
+      - blog-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  blog-web:
+    image: blog-app-web:latest
+    container_name: blog-web
+    restart: unless-stopped
+    depends_on:
+      - blog-api
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    networks:
+      - blog-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  blog-network:
+    external: true

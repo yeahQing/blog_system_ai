@@ -1,0 +1,119 @@
+# 数据库、缓存与 AI 推理（独立项目 blog-infra，长期运行；升级业务时不要动本文件）
+# 首次：docker compose -f docker-compose.infra.yml --env-file .env up -d
+# 会创建网络 blog-network，供业务容器加入
+# Ollama 默认暴露 11434 端口，首次启动后自动拉取 bge-m3 embedding 模型
+name: blog-infra
+
+services:
+  blog-db:
+    # 自定义镜像：基于 PostgreSQL 15，内置 pgvector 0.8.0 + PostGIS 3.4
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: blog-postgres:pg15-vector-postgis
+    container_name: blog-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-blog}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - ../data/postgres:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    # 映射到宿主机后，本机工具 / 宿主机运行的 Spring 才能用 localhost 连接；仅容器内互通可不配端口
+    ports:
+      - "${DB_HOST_PORT:-5432}:5432"
+    networks:
+      - blog-network
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  blog-redis:
+    image: redis:7-alpine
+    container_name: blog-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    volumes:
+      - ../data/redis:/data
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    networks:
+      - blog-network
+    deploy:
+      resources:
+        limits:
+          memory: 160M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  blog-ollama:
+    image: ollama/ollama:latest
+    container_name: blog-ollama
+    restart: unless-stopped
+    # 如需 GPU 加速，取消下方 runtime 注释（需安装 nvidia-container-toolkit）
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    volumes:
+      - ../data/ollama:/root/.ollama
+    ports:
+      - "${OLLAMA_HOST_PORT:-11434}:11434"
+    networks:
+      - blog-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 容器启动后自动拉取 bge-m3 embedding 模型
+    # 首次拉取约 1.2GB，需等待下载完成
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # 初始化容器：拉取 bge-m3 embedding 模型（仅运行一次）
+  blog-ollama-init:
+    image: ollama/ollama:latest
+    container_name: blog-ollama-init
+    depends_on:
+      blog-ollama:
+        condition: service_healthy
+    networks:
+      - blog-network
+    entrypoint: >
+      sh -c "
+        echo '正在拉取 bge-m3 embedding 模型...' &&
+        ollama pull bge-m3 &&
+        echo 'bge-m3 模型拉取完成！'
+      "
+    environment:
+      OLLAMA_HOST: http://blog-ollama:11434
+
+networks:
+  blog-network:
+    name: blog-network

@@ -1,0 +1,63 @@
+# 本地开发环境：PostgreSQL（含 pgvector+postgis）+ Redis
+# Ollama 使用远程地址，通过环境变量 OLLAMA_BASE_URL 配置，不在本地启动
+#
+# 用法：
+#   cd deploy
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# 停止并删除容器（数据保留在 ../data/dev-postgres 与 ../data/dev-redis）：
+#   docker compose -f docker-compose.dev.yml down
+#
+# 完全清除数据（慎用）：
+#   docker compose -f docker-compose.dev.yml down -v
+#   rm -rf ../data/dev-postgres ../data/dev-redis
+
+name: blog-dev
+
+services:
+  blog-db-dev:
+    # 复用已构建的镜像（含 pgvector 0.8.0 + postgis 3.4）
+    # 若本地未构建，先执行：docker compose -f docker-compose.infra.yml build blog-db
+    image: blog-postgres:pg15-vector-postgis
+    container_name: blog-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: blog
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+    volumes:
+      - ../data/dev-postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - blog-dev-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  blog-redis-dev:
+    image: redis:7-alpine
+    container_name: blog-redis-dev
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --requirepass redis_password
+    volumes:
+      - ../data/dev-redis:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - blog-dev-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  blog-dev-network:
+    name: blog-dev-network

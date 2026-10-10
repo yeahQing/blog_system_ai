@@ -1,0 +1,17 @@
+# HTTPS：腾讯云 Nginx 证书包 deploy/yeahqing.cn_nginx/
+# 文档：https://cloud.tencent.com/document/product/400/35244
+#
+#   docker compose -f docker-compose.infra.yml --env-file .env up -d
+#   docker compose -f docker-compose.app.yml -f docker-compose.app.https.yml --env-file .env up -d --build
+#
+# HTTP 80 → 301 → HTTPS 见 blog-web/nginx/default-https.conf
+name: blog-app
+
+services:
+  blog-web:
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./yeahqing.cn_nginx:/etc/nginx/certs:ro
+      - ../blog-web/nginx/default-https.conf:/etc/nginx/conf.d/default.conf:ro
