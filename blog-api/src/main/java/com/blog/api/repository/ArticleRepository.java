@@ -56,6 +56,9 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      */
     Optional<Article> findByIdAndIsDraftFalseAndIsDeletedFalse(Long id);
 
+    /** 全部已发布且未删除的文章（用于 RAG 向量回填） */
+    List<Article> findByIsDraftFalseAndIsDeletedFalse();
+
     @Query("""
             SELECT DISTINCT a FROM Article a
             LEFT JOIN a.tags tg

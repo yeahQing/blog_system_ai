@@ -30,7 +30,7 @@ spring:
         options:
           model: ${MINIMAX_MODEL:MiniMax-M2.7}
           temperature: 0.4
-          max-tokens: 1024
+          max-tokens: 8192
 
 # 腾讯云 COS 配置
 tencent:

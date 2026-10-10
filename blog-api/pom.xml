@@ -150,6 +150,20 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <!-- JDK 21 下需显式声明 Lombok 注解处理器，否则 @Data/@Builder 生成的 getter/setter 不会被编译 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <!-- package 后 layertools 解压到 target/docker-layers/，供 Docker 分层与增量上传 application/ -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

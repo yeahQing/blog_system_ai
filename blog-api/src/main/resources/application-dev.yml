@@ -1,3 +1,6 @@
+server:
+  port: 8081  # 本地开发端口避开 8080（被其他应用占用）
+
 spring:
   config:
     activate:
@@ -37,3 +40,25 @@ logging:
     com.blog.api: DEBUG
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
+
+# Ollama 配置（本地开发用远程服务器，生产用容器内地址 http://blog-ollama:11434）
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  embedding-model: bge-m3
+  embedding-dim: 1024
+  timeout-ms: 30000
+
+# RAG 检索增强生成配置
+rag:
+  top-k: 5
+  min-score: 0.3
+  max-context-chars: 4000
+  chunk-max-chars: 800
+  # 阶段五：混合检索 + 重排序
+  candidate-pool: 20        # 重排序前候选池大小
+  enable-rerank: false      # 是否启用 MiniMax 重排序（开启会增加一次 LLM 调用）
+
+# 智能体配置
+agent:
+  timeout-seconds: 300      # 单次执行最大时长，超时中止
+  enable-citation: false

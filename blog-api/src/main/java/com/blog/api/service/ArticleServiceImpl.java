@@ -3,18 +3,23 @@ package com.blog.api.service;
 import com.blog.api.dto.ArticleSaveRequest;
 import com.blog.api.entity.Article;
 import com.blog.api.entity.Category;
+import com.blog.api.platform.rag.ArticleChunkService;
 import com.blog.api.repository.ArticleRepository;
 import com.blog.api.repository.CategoryRepository;
 import com.blog.api.repository.TagRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +34,10 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleRepository articleRepository;
     private final TagRepository tagRepository;
     private final CategoryRepository categoryRepository;
+    /** @Lazy 避免与 ArticleChunkService 潜在的循环依赖；@Async 方法在事务提交后触发 */
+    @Autowired
+    @Lazy
+    private ArticleChunkService articleChunkService;
 
     public ArticleServiceImpl(
             ArticleRepository articleRepository,
@@ -100,7 +109,9 @@ public class ArticleServiceImpl implements ArticleService {
             resolveCategory(incoming, req.getCategoryId());
             mergeTagsByIds(incoming, req.getTagIds() != null ? req.getTagIds() : List.of());
             log.info("新建文章: {}", incoming.getTitle());
-            return articleRepository.save(incoming);
+            Article saved = articleRepository.save(incoming);
+            triggerChunkUpsert(saved);
+            return saved;
         }
         Article existing = articleRepository.findById(req.getId())
                 .orElseThrow(() -> new EntityNotFoundException("文章不存在: " + req.getId()));
@@ -120,7 +131,9 @@ public class ArticleServiceImpl implements ArticleService {
             mergeTagsByIds(existing, req.getTagIds());
         }
         log.info("更新文章 id={}: {}", existing.getId(), existing.getTitle());
-        return articleRepository.save(existing);
+        Article saved = articleRepository.save(existing);
+        triggerChunkUpsert(saved);
+        return saved;
     }
 
     @Override
@@ -181,7 +194,40 @@ public class ArticleServiceImpl implements ArticleService {
         articleRepository.findById(id).ifPresent(article -> {
             article.setIsDeleted(true);
             articleRepository.save(article);
+            // 逻辑删除后清理分块（事务提交后异步执行）
+            triggerChunkDelete(id);
         });
+    }
+
+    /**
+     * 事务提交后异步触发分块向量化。
+     * <p>用 {@link TransactionSynchronizationManager} 确保文章已落库再分块，
+     * 避免异步任务读到未提交的数据。无事务上下文时直接执行。</p>
+     */
+    private void triggerChunkUpsert(Article article) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    articleChunkService.upsertChunksAsync(article);
+                }
+            });
+        } else {
+            articleChunkService.upsertChunksAsync(article);
+        }
+    }
+
+    private void triggerChunkDelete(Long articleId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    articleChunkService.deleteChunksAsync(articleId);
+                }
+            });
+        } else {
+            articleChunkService.deleteChunksAsync(articleId);
+        }
     }
 
     @Override
